@@ -1,0 +1,29 @@
+@Entity
+public class Contact {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String phoneNumber;
+    private String email;
+
+    private Long linkedId;
+
+    @Enumerated(EnumType.STRING)
+    private LinkPrecedence linkPrecedence; // PRIMARY or SECONDARY
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private LocalDateTime deletedAt;
+
+    @PrePersist
+    public void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = this.createdAt;
+    }
+
+    @PreUpdate
+    public void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+}
