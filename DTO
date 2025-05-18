@@ -1,0 +1,20 @@
+@Data
+public class IdentifyRequest {
+    private String email;
+    private String phoneNumber;
+}
+
+@Data
+@AllArgsConstructor
+public class IdentifyResponse {
+    private ContactResponse contact;
+}
+
+@Data
+@AllArgsConstructor
+public class ContactResponse {
+    private Long primaryContatctId;
+    private List<String> emails;
+    private List<String> phoneNumbers;
+    private List<Long> secondaryContactIds;
+}
