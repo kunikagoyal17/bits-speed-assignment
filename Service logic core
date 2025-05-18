@@ -1,0 +1,81 @@
+@Service
+public class ContactService {
+
+    @Autowired
+    private ContactRepository contactRepo;
+
+    public IdentifyResponse identifyContact(String email, String phoneNumber) {
+        List<Contact> matchedContacts = contactRepo.findByEmailOrPhoneNumber(email, phoneNumber);
+
+        if (matchedContacts.isEmpty()) {
+            Contact newContact = new Contact();
+            newContact.setEmail(email);
+            newContact.setPhoneNumber(phoneNumber);
+            newContact.setLinkPrecedence(LinkPrecedence.PRIMARY);
+            contactRepo.save(newContact);
+
+            return new IdentifyResponse(new ContactResponse(
+                    newContact.getId(),
+                    List.of(email),
+                    List.of(phoneNumber),
+                    List.of()
+            ));
+        }
+
+        // Find all connected contacts (recursive logic can be added here if needed)
+        Set<Contact> allLinkedContacts = new HashSet<>(matchedContacts);
+        matchedContacts.forEach(contact -> {
+            if (contact.getLinkedId() != null) {
+                allLinkedContacts.add(contactRepo.findById(contact.getLinkedId()).orElse(null));
+            }
+        });
+
+        // Determine primary contact (earliest createdAt)
+        Contact primary = allLinkedContacts.stream()
+            .filter(c -> c.getLinkPrecedence() == LinkPrecedence.PRIMARY)
+            .min(Comparator.comparing(Contact::getCreatedAt))
+            .orElse(null);
+
+        Set<String> emails = new LinkedHashSet<>();
+        Set<String> phoneNumbers = new LinkedHashSet<>();
+        List<Long> secondaryIds = new ArrayList<>();
+
+        for (Contact c : allLinkedContacts) {
+            if (c.getEmail() != null) emails.add(c.getEmail());
+            if (c.getPhoneNumber() != null) phoneNumbers.add(c.getPhoneNumber());
+
+            if (!c.getId().equals(primary.getId())) {
+                if (c.getLinkPrecedence() == LinkPrecedence.PRIMARY) {
+                    c.setLinkPrecedence(LinkPrecedence.SECONDARY);
+                    c.setLinkedId(primary.getId());
+                    contactRepo.save(c);
+                }
+                secondaryIds.add(c.getId());
+            }
+        }
+
+        // New information? Add secondary contact
+        boolean existsWithBoth = allLinkedContacts.stream()
+            .anyMatch(c -> email != null && email.equals(c.getEmail()) &&
+                           phoneNumber != null && phoneNumber.equals(c.getPhoneNumber()));
+        if (!existsWithBoth) {
+            Contact newSecondary = new Contact();
+            newSecondary.setEmail(email);
+            newSecondary.setPhoneNumber(phoneNumber);
+            newSecondary.setLinkPrecedence(LinkPrecedence.SECONDARY);
+            newSecondary.setLinkedId(primary.getId());
+            contactRepo.save(newSecondary);
+            secondaryIds.add(newSecondary.getId());
+
+            if (email != null) emails.add(email);
+            if (phoneNumber != null) phoneNumbers.add(phoneNumber);
+        }
+
+        return new IdentifyResponse(new ContactResponse(
+            primary.getId(),
+            new ArrayList<>(emails),
+            new ArrayList<>(phoneNumbers),
+            secondaryIds
+        ));
+    }
+}
